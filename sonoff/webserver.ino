@@ -99,8 +99,8 @@ const char HTTP_BTN_RSTRT[] PROGMEM =
   "<br/><form action='/rb' method='post'><button>Restart</button></form>";
 const char HTTP_BTN_MENU2[] PROGMEM =
   "<br/><form action='/w0' method='post'><button>Configure WiFi</button></form>"
-  "<br/><form action='/mq' method='post'><button>Configure MQTT</button></form>"
 #ifdef USE_MQTT
+  "<br/><form action='/mq' method='post'><button>Configure MQTT</button></form>"
 #ifdef USE_DOMOTICZ
   "<br/><form action='/dm' method='post'><button>Configure Domoticz</button></form>"
 #endif  // USE_DOMOTICZ
@@ -276,8 +276,8 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/cn", handleConfig);
       webServer->on("/w1", handleWifi1);
       webServer->on("/w0", handleWifi0);
-      webServer->on("/mq", handleMqtt);
 #ifdef USE_MQTT
+      webServer->on("/mq", handleMqtt);
 #ifdef USE_DOMOTICZ
       webServer->on("/dm", handleDomoticz);
 #endif  // USE_DOMOTICZ
@@ -650,6 +650,7 @@ void handleWifi(boolean scan)
   showPage(page);
 }
 
+#ifdef USE_MQTT
 void handleMqtt()
 {
   if (_httpflag == HTTP_USER) {
@@ -675,7 +676,6 @@ void handleMqtt()
   showPage(page);
 }
 
-#ifdef USE_MQTT
 #ifdef USE_DOMOTICZ
 void handleDomoticz()
 {
@@ -1157,6 +1157,7 @@ void handleInfo()
     page += F("<tr><td><b>AP MAC address</b></td><td>"); page += WiFi.softAPmacAddress(); page += F("</td></tr>");
   }
   page += F("<tr><td>&nbsp;</td></tr>");
+#ifdef USE_MQTT
   page += F("<tr><td><b>MQTT Host</b></td><td>"); page += sysCfg.mqtt_host; page += F("</td></tr>");
   page += F("<tr><td><b>MQTT Port</b></td><td>"); page += String(sysCfg.mqtt_port); page += F("</td></tr>");
   page += F("<tr><td><b>MQTT Client and<br/>&nbsp;Fallback Topic</b></td><td>"); page += MQTTClient; page += F("</td></tr>");
@@ -1164,6 +1165,9 @@ void handleInfo()
 //  page += F("<tr><td><b>MQTT Password</b></td><td>"); page += sysCfg.mqtt_pwd; page += F("</td></tr>");
   page += F("<tr><td><b>MQTT Topic</b></td><td>"); page += sysCfg.mqtt_topic; page += F("</td></tr>");
   page += F("<tr><td><b>MQTT Group Topic</b></td><td>"); page += sysCfg.mqtt_grptopic; page += F("</td></tr>");
+#else
+  page += F("<tr><td><b>MQTT</b></td><td>Disabled</td></tr>");
+#endif
   page += F("<tr><td>&nbsp;</td></tr>");
   page += F("<tr><td><b>ESP Chip id</b></td><td>"); page += String(ESP.getChipId()); page += F("</td></tr>");
   page += F("<tr><td><b>Flash Chip id</b></td><td>"); page += String(ESP.getFlashChipId()); page += F("</td></tr>");
