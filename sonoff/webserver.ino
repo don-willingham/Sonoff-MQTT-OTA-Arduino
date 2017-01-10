@@ -1215,6 +1215,23 @@ void handleInfo()
 #endif // USE_MQTT
   page += F("<tr><td>&nbsp;</td></tr>");
   page += F("<tr><td><b>WeMo Emulation</b></td><td>");
+#ifdef USE_WEMO_EMULATION
+  page += F("Enabled");
+#else
+  page += F("Disabled");
+#endif // USE_WEMO_EMULATION
+  page += F("<tr><td><b>mDNS Discovery</b></td><td>");
+#ifdef USE_DISCOVERY
+  page += F("Enabled");
+#else
+  page += F("Disabled");
+#endif // USE_DISCOVERY
+  page += F("<tr><td><b>mDNS Webserver Advertise</b></td><td>");
+#ifdef WEBSERVER_ADVERTISE
+  page += F("Enabled");
+#else
+  page += F("Disabled");
+#endif // WEBSERVER_ADVERTISE
   page += F("</td></tr>");
   page += F("<tr><td>&nbsp;</td></tr>");
   page += F("<tr><td><b>ESP Chip id</b></td><td>"); page += String(ESP.getChipId()); page += F("</td></tr>");
