@@ -621,46 +621,54 @@ const char WEMO_MSEARCH[] PROGMEM =
   "CACHE-CONTROL: max-age=86400\r\n"
   "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
   "EXT:\r\n"
-  "LOCATION: http://{r1}:80/setup.xml\r\n"
+  "LOCATION: http://{r1}:{r2}/setup.xml\r\n"
   "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
   "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
   "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
   "ST: urn:Belkin:device:**\r\n"
-  "USN: uuid:{r2}::urn:Belkin:device:**\r\n"
+  "USN: uuid:{r3}::urn:Belkin:device:**\r\n"
   "X-User-Agent: redsonic\r\n"
   "\r\n";
 
-String wemo_serial()
+String wemo_serial(const char offset)
 {
   char serial[15];
   snprintf_P(serial, sizeof(serial), PSTR("201612K%07d"), ESP.getChipId());
+  if (offset > 0) {
+    int len = strlen(serial);
+    // May need to carry to 16's place
+    serial[len-1] += offset;
+  }
   return String(serial);
 }
 
-String wemo_UUID()
+String wemo_UUID(const char offset)
 {
   char uuid[26];
-  snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), wemo_serial().c_str());
+  snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), wemo_serial(offset).c_str());
   return String(uuid);
 }
 
 void wemo_respondToMSearch()
 {
-  char message[TOPSZ], log[LOGSZ];
-
-  if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
-    String response = FPSTR(WEMO_MSEARCH);
-    response.replace("{r1}", WiFi.localIP().toString());
-    response.replace("{r2}", wemo_UUID());
-    portUDP.write(response.c_str());
-    portUDP.endPacket();
-    snprintf_P(message, sizeof(message), PSTR("Response sent"));
-  } else {
-    snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
+  char message[TOPSZ], portstr[3], log[LOGSZ];
+  for (char chan = 0; chan < 2; chan++) {
+    if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
+      String response = FPSTR(WEMO_MSEARCH);
+      response.replace("{r1}", WiFi.localIP().toString());
+      snprintf_P(portstr, sizeof(portstr), PSTR("%d"), 80+chan);
+      response.replace("{r2}", portstr);
+      response.replace("{r3}", wemo_UUID(chan));
+      portUDP.write(response.c_str());
+      portUDP.endPacket();
+      snprintf_P(message, sizeof(message), PSTR("Response sent"));
+    } else {
+      snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
+    }
+    snprintf_P(log, sizeof(log), PSTR("UPnP: %s port %s uid %s to %s:%d"),
+      message, portstr, wemo_UUID(chan).c_str(), portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
+    addLog(LOG_LEVEL_DEBUG, log);
   }
-  snprintf_P(log, sizeof(log), PSTR("UPnP: %s to %s:%d"),
-    message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
-  addLog(LOG_LEVEL_DEBUG, log);
 }
 
 void pollUDP()
@@ -670,7 +678,7 @@ void pollUDP()
       int len = portUDP.read(packetBuffer, WEMO_BUFFER_SIZE -1);
       if (len > 0) packetBuffer[len] = 0;
       String request = packetBuffer;
-//      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
+      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
       if (request.indexOf("M-SEARCH") >= 0) {
         if (request.indexOf("urn:Belkin:device:**") > 0) {
           wemo_respondToMSearch();
