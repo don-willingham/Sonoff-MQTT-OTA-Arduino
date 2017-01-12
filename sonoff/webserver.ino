@@ -255,6 +255,7 @@ enum http_t {HTTP_OFF, HTTP_USER, HTTP_ADMIN, HTTP_MANAGER};
 
 DNSServer *dnsServer;
 ESP8266WebServer *webServer;
+ESP8266WebServer *webServer2;
 
 boolean _removeDuplicateAPs = true;
 int _minimumQuality = -1, _httpflag = HTTP_OFF, _uploaderror = 0, _colcount;
@@ -266,6 +267,7 @@ void startWebserver(int type, IPAddress ipweb)
   if (!_httpflag) {
     if (!webServer) {
       webServer = new ESP8266WebServer(80);
+      webServer2 = new ESP8266WebServer(81);
       webServer->on("/", handleRoot);
       webServer->on("/cn", handleConfig);
       webServer->on("/w1", handleWifi1);
@@ -293,10 +295,14 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/upnp/control/basicevent1", HTTP_POST, handleUPnPevent);
       webServer->on("/eventservice.xml", handleUPnPservice);
       webServer->on("/setup.xml", handleUPnPsetup);
+      webServer2->on("/upnp/control/basicevent1", HTTP_POST, handleUPnPevent2);
+      webServer2->on("/eventservice.xml", handleUPnPservice2);
+      webServer2->on("/setup.xml", handleUPnPsetup2);
 #endif  // USE_WEMO_EMULATION
       webServer->onNotFound(handleNotFound);
     }
     webServer->begin(); // Web server start
+    webServer2->begin(); // Web server start
   }
   if (_httpflag != type) {
     snprintf_P(log, sizeof(log), PSTR("HTTP: Webserver active on %s%s with IP address %s"),
@@ -310,6 +316,7 @@ void stopWebserver()
 {
   if (_httpflag) {
     webServer->close();
+    webServer2->close();
     _httpflag = HTTP_OFF;
     addLog_P(LOG_LEVEL_INFO, PSTR("HTTP: Webserver stopped"));
   }
@@ -342,6 +349,7 @@ void pollDnsWeb()
 {
   if (dnsServer) dnsServer->processNextRequest();
   if (webServer) webServer->handleClient();
+  if (webServer2) webServer2->handleClient();
 }
 
 void showPage(String &page)
@@ -1279,12 +1287,30 @@ void handleUPnPevent()
   webServer->send(200, "text/plain", "");
 }
 
+void handleUPnPevent2()
+{
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo 2 basic event"));
+
+  String request = webServer2->arg(0);
+  if(request.indexOf("State>1</Binary") > 0) do_cmnd_power(1, 1);
+  if(request.indexOf("State>0</Binary") > 0) do_cmnd_power(1, 0);
+  webServer2->send(200, "text/plain", "");
+}
+
 void handleUPnPservice()
 {
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo event service"));
 
   String eventservice_xml = FPSTR(WEMO_EVENTSERVICE_XML);
   webServer->send(200, "text/plain", eventservice_xml);
+}
+
+void handleUPnPservice2()
+{
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo 2 event service"));
+
+  String eventservice_xml = FPSTR(WEMO_EVENTSERVICE_XML);
+  webServer2->send(200, "text/plain", eventservice_xml);
 }
 
 void handleUPnPsetup()
@@ -1294,9 +1320,21 @@ void handleUPnPsetup()
   String setup_xml = FPSTR(WEMO_SETUP_XML);
 //  setup_xml.replace("{x1}", String(MQTTClient));
   setup_xml.replace("{x1}", String(sysCfg.friendlyname));
-  setup_xml.replace("{x2}", wemo_UUID());
-  setup_xml.replace("{x3}", wemo_serial());
+  setup_xml.replace("{x2}", wemo_UUID(0));
+  setup_xml.replace("{x3}", wemo_serial(0));
   webServer->send(200, "text/xml", setup_xml);
+}
+
+void handleUPnPsetup2()
+{
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo 2 setup"));
+
+  String setup_xml = FPSTR(WEMO_SETUP_XML);
+//  setup_xml.replace("{x1}", String(MQTTClient));
+  setup_xml.replace("{x1}", String("Second"));
+  setup_xml.replace("{x2}", wemo_UUID(1));
+  setup_xml.replace("{x3}", wemo_serial(1));
+  webServer2->send(200, "text/xml", setup_xml);
 }
 #endif  // USE_WEMO_EMULATION
 
