@@ -31,6 +31,10 @@ POSSIBILITY OF SUCH DAMAGE.
  * Source by AlexT (https://github.com/tzapu)
 \*********************************************************************************************/
 
+#ifdef USE_WEMO_EMULATION
+#include "wemo.h"
+#endif // USE_WEMO_EMULATION
+
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
@@ -257,6 +261,12 @@ DNSServer *dnsServer;
 ESP8266WebServer *webServer;
 ESP8266WebServer *webServer2;
 
+#ifdef USE_WEMO_EMULATION
+#include "wemo.h"
+Wemo *wemos[2];
+#endif // USE_WEMO_EMULATION
+
+
 boolean _removeDuplicateAPs = true;
 int _minimumQuality = -1, _httpflag = HTTP_OFF, _uploaderror = 0, _colcount;
 
@@ -292,12 +302,8 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/rb", handleRestart);
       webServer->on("/fwlink", handleRoot);  // Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
 #ifdef USE_WEMO_EMULATION
-      webServer->on("/upnp/control/basicevent1", HTTP_POST, handleUPnPevent);
-      webServer->on("/eventservice.xml", handleUPnPservice);
-      webServer->on("/setup.xml", handleUPnPsetup);
-      webServer2->on("/upnp/control/basicevent1", HTTP_POST, handleUPnPevent2);
-      webServer2->on("/eventservice.xml", handleUPnPservice2);
-      webServer2->on("/setup.xml", handleUPnPsetup2);
+      wemos[0] = new Wemo(webServer, 1, String(sysCfg.friendlyname), wemo_serial(0), wemo_UUID(0));
+      wemos[1] = new Wemo(webServer2, 2, String("Second"), wemo_serial(1), wemo_UUID(1));
 #endif  // USE_WEMO_EMULATION
       webServer->onNotFound(handleNotFound);
     }
@@ -1275,68 +1281,6 @@ void handleRestart()
 
   restartflag = 2;
 }
-
-#ifdef USE_WEMO_EMULATION
-void handleUPnPevent()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo basic event"));
-
-  String request = webServer->arg(0);
-  if(request.indexOf("State>1</Binary") > 0) do_cmnd_power(1, 1);
-  if(request.indexOf("State>0</Binary") > 0) do_cmnd_power(1, 0);
-  webServer->send(200, "text/plain", "");
-}
-
-void handleUPnPevent2()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo 2 basic event"));
-
-  String request = webServer2->arg(0);
-  if(request.indexOf("State>1</Binary") > 0) do_cmnd_power(1, 1);
-  if(request.indexOf("State>0</Binary") > 0) do_cmnd_power(1, 0);
-  webServer2->send(200, "text/plain", "");
-}
-
-void handleUPnPservice()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo event service"));
-
-  String eventservice_xml = FPSTR(WEMO_EVENTSERVICE_XML);
-  webServer->send(200, "text/plain", eventservice_xml);
-}
-
-void handleUPnPservice2()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo 2 event service"));
-
-  String eventservice_xml = FPSTR(WEMO_EVENTSERVICE_XML);
-  webServer2->send(200, "text/plain", eventservice_xml);
-}
-
-void handleUPnPsetup()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo setup"));
-
-  String setup_xml = FPSTR(WEMO_SETUP_XML);
-//  setup_xml.replace("{x1}", String(MQTTClient));
-  setup_xml.replace("{x1}", String(sysCfg.friendlyname));
-  setup_xml.replace("{x2}", wemo_UUID(0));
-  setup_xml.replace("{x3}", wemo_serial(0));
-  webServer->send(200, "text/xml", setup_xml);
-}
-
-void handleUPnPsetup2()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo 2 setup"));
-
-  String setup_xml = FPSTR(WEMO_SETUP_XML);
-//  setup_xml.replace("{x1}", String(MQTTClient));
-  setup_xml.replace("{x1}", String("Second"));
-  setup_xml.replace("{x2}", wemo_UUID(1));
-  setup_xml.replace("{x3}", wemo_serial(1));
-  webServer2->send(200, "text/xml", setup_xml);
-}
-#endif  // USE_WEMO_EMULATION
 
 void handleNotFound()
 {

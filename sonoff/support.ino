@@ -630,19 +630,14 @@ const char WEMO_MSEARCH[] PROGMEM =
   "X-User-Agent: redsonic\r\n"
   "\r\n";
 
-String wemo_serial(const char offset)
+String wemo_serial(const int offset)
 {
   char serial[15];
-  snprintf_P(serial, sizeof(serial), PSTR("201612K%07d"), ESP.getChipId());
-  if (offset > 0) {
-    int len = strlen(serial);
-    // May need to carry to 16's place
-    serial[len-1] += offset;
-  }
+  snprintf_P(serial, sizeof(serial), PSTR("201612K%07d%d"), ESP.getChipId()+offset);
   return String(serial);
 }
 
-String wemo_UUID(const char offset)
+String wemo_UUID(const int offset)
 {
   char uuid[26];
   snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), wemo_serial(offset).c_str());
@@ -652,6 +647,8 @@ String wemo_UUID(const char offset)
 void wemo_respondToMSearch()
 {
   char message[TOPSZ], portstr[3], log[LOGSZ];
+  /* Thanks for https://github.com/kakopappa/arduino-esp8266-alexa-wemo-switch for showing
+   *  that each "wemo" can run on a different port */
   for (char chan = 0; chan < 2; chan++) {
     if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
       String response = FPSTR(WEMO_MSEARCH);
