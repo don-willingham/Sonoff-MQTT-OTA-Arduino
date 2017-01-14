@@ -19,7 +19,7 @@
 #define PROJECT                "sonoff"     // PROJECT is used as the default topic delimiter and OTA file name
                                             //   As an IDE restriction it needs to be the same as the main .ino file
 
-#define CFG_HOLDER             0x20161209   // [Reset 1] Change this value to load following default configuration parameters
+#define CFG_HOLDER             0x20170113   // [Reset 1] Change this value to load following default configuration parameters
 #define SAVE_DATA              1            // [SaveData] Save changed parameters to Flash (0 = disable, 1 - 3600 seconds)
 #define SAVE_STATE             1            // [SaveState] Save changed power state to Flash (0 = disable, 1 = enable)
 
@@ -102,6 +102,7 @@
 // -- HTTP -----------------------------------
 #define USE_WEBSERVER                       // Enable web server and wifi manager (+43k code, +2k mem) - Disable by //
   #define FRIENDLY_NAME        "Sonoff"     // [FriendlyName] Friendlyname up to 32 characters used by webpages and Alexa
+  #define FRIENDLY_NAME2       "Sonoff-Dual"// [FriendlyName2] Friendlyname up to 32 characters used by webpages and Alexa
   #define WEB_SERVER           2            // [WebServer] Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 //  #define USE_WEMO_EMULATION                // Enable Belkin WeMo PowerSwitch emulation for Alexa (+4k code, +2k mem)
 

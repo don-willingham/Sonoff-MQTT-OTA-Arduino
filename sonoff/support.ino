@@ -31,6 +31,12 @@ extern "C" {
 #include "spi_flash.h"
 }
 
+#ifdef USE_WEMO_EMULATION
+#include "wemo.h"
+extern Wemo *wemos[2];
+#endif // USE_WEMO_EMULATION
+
+
 #define SPIFFS_START        ((uint32_t)&_SPIFFS_start - 0x40200000) / SPI_FLASH_SEC_SIZE
 #define SPIFFS_END          ((uint32_t)&_SPIFFS_end - 0x40200000) / SPI_FLASH_SEC_SIZE
 
@@ -616,55 +622,13 @@ void IPtoCharArray(IPAddress address, char *ip_str, size_t size)
 /*********************************************************************************************\
  * WeMo UPNP support routines
 \*********************************************************************************************/
-const char WEMO_MSEARCH[] PROGMEM =
-  "HTTP/1.1 200 OK\r\n"
-  "CACHE-CONTROL: max-age=86400\r\n"
-  "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
-  "EXT:\r\n"
-  "LOCATION: http://{r1}:{r2}/setup.xml\r\n"
-  "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
-  "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
-  "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
-  "ST: urn:Belkin:device:**\r\n"
-  "USN: uuid:{r3}::urn:Belkin:device:**\r\n"
-  "X-User-Agent: redsonic\r\n"
-  "\r\n";
-
-String wemo_serial(const int offset)
-{
-  char serial[15];
-  snprintf_P(serial, sizeof(serial), PSTR("201612K%07d%d"), ESP.getChipId()+offset);
-  return String(serial);
-}
-
-String wemo_UUID(const int offset)
-{
-  char uuid[26];
-  snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), wemo_serial(offset).c_str());
-  return String(uuid);
-}
 
 void wemo_respondToMSearch()
 {
-  char message[TOPSZ], portstr[3], log[LOGSZ];
   /* Thanks for https://github.com/kakopappa/arduino-esp8266-alexa-wemo-switch for showing
    *  that each "wemo" can run on a different port */
   for (char chan = 0; chan < 2; chan++) {
-    if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
-      String response = FPSTR(WEMO_MSEARCH);
-      response.replace("{r1}", WiFi.localIP().toString());
-      snprintf_P(portstr, sizeof(portstr), PSTR("%d"), 80+chan);
-      response.replace("{r2}", portstr);
-      response.replace("{r3}", wemo_UUID(chan));
-      portUDP.write(response.c_str());
-      portUDP.endPacket();
-      snprintf_P(message, sizeof(message), PSTR("Response sent"));
-    } else {
-      snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
-    }
-    snprintf_P(log, sizeof(log), PSTR("UPnP: %s port %s uid %s to %s:%d"),
-      message, portstr, wemo_UUID(chan).c_str(), portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
-    addLog(LOG_LEVEL_DEBUG, log);
+    wemos[chan]->respondToMSearch();
   }
 }
 

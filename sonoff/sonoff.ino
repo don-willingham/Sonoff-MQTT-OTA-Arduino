@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x03020200   // 3.2.2
+#define VERSION                0x03020300   // 3.2.3
 
 #define SONOFF                 1            // Sonoff, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -225,7 +225,7 @@ struct SYSCFG {
   byte          model;
   int8_t        timezone;
   char          otaUrl[101];
-  char          friendlyname[33];
+  char          friendlyname[2][33];
 
   byte          serial_enable;
   byte          seriallog_level;
@@ -429,7 +429,8 @@ void CFG_DefaultSet()
   sysCfg.model = 0;
   sysCfg.timezone = APP_TIMEZONE;
   strlcpy(sysCfg.otaUrl, OTA_URL, sizeof(sysCfg.otaUrl));
-  strlcpy(sysCfg.friendlyname, FRIENDLY_NAME, sizeof(sysCfg.friendlyname));
+  strlcpy(sysCfg.friendlyname[0], FRIENDLY_NAME, sizeof(sysCfg.friendlyname[0]));
+  strlcpy(sysCfg.friendlyname[1], FRIENDLY_NAME2, sizeof(sysCfg.friendlyname[1]));
 
   sysCfg.seriallog_level = SERIAL_LOG_LEVEL;
   sysCfg.sta_active = 0;
@@ -536,7 +537,7 @@ void CFG_Migrate_Part2()
     strlcpy(sysCfg.mqtt_client, sysCfg2.mqtt_client, sizeof(sysCfg.mqtt_client));
     strlcpy(sysCfg.mqtt_user, sysCfg2.mqtt_user, sizeof(sysCfg.mqtt_user));
     strlcpy(sysCfg.mqtt_pwd, sysCfg2.mqtt_pwd, sizeof(sysCfg.mqtt_pwd));
-    strlcpy(sysCfg.friendlyname, sysCfg2.mqtt_client, sizeof(sysCfg.friendlyname));
+    strlcpy(sysCfg.friendlyname[0], sysCfg2.mqtt_client, sizeof(sysCfg.friendlyname[0]));
   }
   if (sysCfg2.version >= 0x01001700) {  // 1.0.23
     sysCfg.webserver = sysCfg2.webserver;
@@ -638,7 +639,10 @@ void CFG_Delta()
       sysCfg.blinkcount = APP_BLINKCOUNT;
     }
     if (sysCfg.version < 0x03011000) {  // 3.1.16 - Add parameter
-      getClient(sysCfg.friendlyname, sysCfg.mqtt_client, sizeof(sysCfg.friendlyname));
+      getClient(sysCfg.friendlyname[0], sysCfg.mqtt_client, sizeof(sysCfg.friendlyname[0]));
+    }
+    if (sysCfg.version < 0x03011100) {  // 3.1.17 - Add parameter
+      getClient(sysCfg.friendlyname[1], FRIENDLY_NAME2, sizeof(sysCfg.friendlyname[1]));
     }
 
     sysCfg.version = VERSION;
@@ -1281,10 +1285,10 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       }
     }
     else if (!strcmp(type,"FRIENDLYNAME")) {
-      if ((data_len > 0) && (data_len < sizeof(sysCfg.friendlyname))) {
-        strlcpy(sysCfg.friendlyname, (payload == 1) ? FRIENDLY_NAME : dataBuf, sizeof(sysCfg.friendlyname));
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.friendlyname[0]))) {
+        strlcpy(sysCfg.friendlyname[0], (payload == 1) ? FRIENDLY_NAME : dataBuf, sizeof(sysCfg.friendlyname[0]));
       }
-      snprintf_P(svalue, sizeof(svalue), PSTR("{\"FriendlyName\":\"%s\"}"), sysCfg.friendlyname);
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"FriendlyName\":\"%s\"}"), sysCfg.friendlyname[0]);
     }
 #ifdef USE_WALL_SWITCH
     else if (!strcmp(type,"SWITCHMODE")) {
@@ -1816,10 +1820,10 @@ void publish_status(uint8_t payload)
   if ((payload == 0) || (payload == 99)) {
     if (sysCfg.message_format == JSON) {
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"Status\":{\"Model\":%d, \"FriendlyName\":\"%s\", \"Topic\":\"%s\", \"ButtonTopic\":\"%s\", \"Subtopic\":\"%s\", \"Power\":%d, \"PowerOnState\":%d, \"LedState\":%d, \"SaveData\":%d, \"SaveState\":%d, \"ButtonRetain\":%d, \"PowerRetain\":%d}}"),
-        sysCfg.model, sysCfg.friendlyname, sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
+        sysCfg.model, sysCfg.friendlyname[0], sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
     } else {
       snprintf_P(svalue, sizeof(svalue), PSTR("%s, %d, %s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d"),
-        Version, sysCfg.model, sysCfg.friendlyname, sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
+        Version, sysCfg.model, sysCfg.friendlyname[0], sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
     }
     if (payload == 0) mqtt_publish(stopic, svalue);
   }
@@ -2583,7 +2587,7 @@ void setup()
   rtc_init(every_second_cb);
 
   snprintf_P(log, sizeof(log), PSTR("APP: Project %s %s (Topic %s, Fallback %s, GroupTopic %s) Version %s"),
-    PROJECT, sysCfg.friendlyname, sysCfg.mqtt_topic, MQTTClient, sysCfg.mqtt_grptopic, Version);
+    PROJECT, sysCfg.friendlyname[0], sysCfg.mqtt_topic, MQTTClient, sysCfg.mqtt_grptopic, Version);
   addLog(LOG_LEVEL_INFO, log);
 }
 

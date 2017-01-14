@@ -168,7 +168,8 @@ const char HTTP_FORM_LOG3[] PROGMEM =
 const char HTTP_FORM_OTHER[] PROGMEM =
   "<fieldset><legend><b>&nbsp;Other parameters&nbsp;</b></legend><form method='post' action='sv'>"
   "<input id='w' name='w' value='5' hidden><input id='r' name='r' value='0' hidden>"
-  "<br/><b>Friendly Name</b> (" FRIENDLY_NAME ")<br/><input id='an' name='an' length=32 placeholder='" FRIENDLY_NAME" ' value='{a1}'><br/>";
+  "<br/><b>Friendly Name</b> (" FRIENDLY_NAME ")<br/><input id='an' name='an' length=32 placeholder='" FRIENDLY_NAME" ' value='{a1}'><br/>"
+  "<br/><b>Friendly Name 2</b> (" FRIENDLY_NAME2 ")<br/><input id='ao' name='ao' length=32 placeholder='" FRIENDLY_NAME2" ' value='{a2}'><br/>";
 const char HTTP_FORM_END[] PROGMEM =
   "<br/><button type='submit'>Save</button></form></fieldset>";
 const char HTTP_FORM_UPG[] PROGMEM =
@@ -301,8 +302,8 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/rb", handleRestart);
       webServer->on("/fwlink", handleRoot);  // Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
 #ifdef USE_WEMO_EMULATION
-      wemos[0] = new Wemo(webServer, 1, String(sysCfg.friendlyname), wemo_serial(0), wemo_UUID(0));
-      wemos[1] = new Wemo(webServer2, 2, String("Second"), wemo_serial(1), wemo_UUID(1));
+      wemos[0] = new Wemo(webServer, 1);
+      wemos[1] = new Wemo(webServer2, 2);
 #endif  // USE_WEMO_EMULATION
       webServer->onNotFound(handleNotFound);
     }
@@ -359,7 +360,7 @@ void pollDnsWeb()
 
 void showPage(String &page)
 {
-  page.replace("{h}", String(sysCfg.friendlyname));
+  page.replace("{h}", String(sysCfg.friendlyname[0]));
   page.replace("{ha}", Hostname);
   if (_httpflag == HTTP_MANAGER) {
     if (WIFI_configCounter()) {
@@ -710,7 +711,8 @@ void handleOther()
   String page = FPSTR(HTTP_HEAD);
   page.replace("{v}", "Configure Other");
   page += FPSTR(HTTP_FORM_OTHER);
-  page.replace("{a1}", String(sysCfg.friendlyname));
+  page.replace("{a1}", String(sysCfg.friendlyname[0]));
+  page.replace("{a2}", String(sysCfg.friendlyname[1]));
   page += FPSTR(HTTP_FORM_END);
   page += FPSTR(HTTP_BTN_CONF);
   showPage(page);
@@ -784,9 +786,10 @@ void handleSave()
 #endif  // USE_DOMOTICZ
 #endif  // USE_MQTT
   case 5:
-    strlcpy(sysCfg.friendlyname, (!strlen(webServer->arg("an").c_str())) ? FRIENDLY_NAME : webServer->arg("an").c_str(), sizeof(sysCfg.friendlyname));
-    snprintf_P(log, sizeof(log), PSTR("HTTP: Other Friendly Name %s"),
-      sysCfg.friendlyname);
+    strlcpy(sysCfg.friendlyname[0], (!strlen(webServer->arg("an").c_str())) ? FRIENDLY_NAME : webServer->arg("an").c_str(), sizeof(sysCfg.friendlyname[0]));
+    strlcpy(sysCfg.friendlyname[1], (!strlen(webServer->arg("ao").c_str())) ? FRIENDLY_NAME2 : webServer->arg("ao").c_str(), sizeof(sysCfg.friendlyname[1]));
+    snprintf_P(log, sizeof(log), PSTR("HTTP: Other Friendly Names %s & %s %d %d %d"),
+      sysCfg.friendlyname[0], sysCfg.friendlyname[1], sizeof(sysCfg.friendlyname[0]), sizeof(sysCfg.friendlyname[0]), sizeof(sysCfg.friendlyname[0][0]));
     addLog(LOG_LEVEL_INFO, log);
     break;
   }
@@ -1121,7 +1124,8 @@ void handleInfo()
 //  page += F("<fieldset><legend><b>&nbsp;Information&nbsp;</b></legend>");
   page += F("<style>td{padding:0px 5px;}</style>");
   page += F("<table style'width:100%;'>");
-  page += F("<tr><th>Friendly name</th><td>"); page += String(sysCfg.friendlyname); page += F("</td></tr>");
+  page += F("<tr><th>Friendly name</th><td>"); page += String(sysCfg.friendlyname[0]); page += F("</td></tr>");
+  page += F("<tr><th>Friendly name 2</th><td>"); page += String(sysCfg.friendlyname[1]); page += F("</td></tr>");
   page += F("<tr><th>Program version</th><td>"); page += Version; page += F("</td></tr>");
   page += F("<tr><th>Core/SDK version</th><td>"); page += ESP.getCoreVersion(); page += F("/"); page += String(ESP.getSdkVersion()); page += F("</td></tr>");
 //  page += F("<tr><td><b>Boot version</b></td><td>"); page += String(ESP.getBootVersion()); page += F("</td></tr>");

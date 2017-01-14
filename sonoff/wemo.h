@@ -29,19 +29,16 @@ class Wemo {
 private:
         ESP8266WebServer *_server = NULL;
         byte _device = 0;
-        String _friendlyname;
-        String _serial;
-        String _uuid;
     
         void handleUPnPevent();
         void handleUPnPservice();
         void handleUPnPsetup();
 public:
         Wemo(ESP8266WebServer *server,
-           byte device,
-           String friendlyName,
-           String serial,
-           String uuid);
+           byte device);
+        String getSerial();
+        String getUuid();
+        void respondToMSearch();
         ~Wemo();
 };
 

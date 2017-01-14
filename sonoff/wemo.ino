@@ -26,13 +26,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifdef USE_WEMO_EMULATION
 #include "wemo.h"
 
-Wemo::Wemo(ESP8266WebServer *server, byte device, String friendlyname, String serial, String uuid)
+Wemo::Wemo(ESP8266WebServer *server, byte device)
 {
   _server = server;
   _device = device;
-  _friendlyname = friendlyname;
-  _serial = serial;
-  _uuid = uuid;
 
   /* Use of Lambda functions inspired by https://github.com/kakopappa/arduino-esp8266-alexa-wemo-switch */
   _server->on("/upnp/control/basicevent1", HTTP_POST, [&]() {
@@ -73,10 +70,57 @@ void Wemo::handleUPnPsetup()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo setup"));
 
   String setup_xml = FPSTR(WEMO_SETUP_XML);
-  setup_xml.replace("{x1}", _friendlyname);
-  setup_xml.replace("{x2}", _uuid);
-  setup_xml.replace("{x3}", _serial);
+  setup_xml.replace("{x1}", sysCfg.friendlyname[_device-1]);
+  setup_xml.replace("{x2}", getUuid());
+  setup_xml.replace("{x3}", getSerial());
   _server->send(200, "text/xml", setup_xml);
+}
+
+String Wemo::getSerial()
+{
+  char serial[18];
+  snprintf_P(serial, sizeof(serial), PSTR("201612K%08xd%d"), ESP.getChipId(), (int)_device);
+  return String(serial);
+}
+
+String Wemo::getUuid()
+{
+  char uuid[29];
+  snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), getSerial().c_str());
+  return String(uuid);
+}
+
+void Wemo::respondToMSearch()
+{
+  char message[TOPSZ], portstr[3], log[LOGSZ];
+  const char WEMO_MSEARCH[] =
+    "HTTP/1.1 200 OK\r\n"
+    "CACHE-CONTROL: max-age=86400\r\n"
+    "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
+    "EXT:\r\n"
+    "LOCATION: http://{r1}:{r2}/setup.xml\r\n"
+    "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
+    "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
+    "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
+    "ST: urn:Belkin:device:**\r\n"
+    "USN: uuid:{r3}::urn:Belkin:device:**\r\n"
+    "X-User-Agent: redsonic\r\n"
+    "\r\n";
+  String response = FPSTR(WEMO_MSEARCH);
+  response.replace("{r1}", WiFi.localIP().toString());
+  snprintf_P(portstr, sizeof(portstr), PSTR("%d"), 79+_device);
+  response.replace("{r2}", portstr);
+  response.replace("{r3}", getUuid());
+  if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
+    portUDP.write(response.c_str());
+    portUDP.endPacket();
+    snprintf_P(message, sizeof(message), PSTR("Response sent"));
+  } else {
+    snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
+  }
+  snprintf_P(log, sizeof(log), PSTR("UPnP: %s to %s:%d"),
+    message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
+  addLog(LOG_LEVEL_DEBUG, log);
 }
 
 #endif // USE_WEMO_EMULATION
