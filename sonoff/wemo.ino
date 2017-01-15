@@ -48,7 +48,9 @@ Wemo::Wemo(ESP8266WebServer *server, byte device)
 
 void Wemo::handleUPnPevent()
 {
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo X basic event"));
+  char log[LOGSZ];
+  snprintf_P(log, sizeof(log), PSTR("HTTP: Handle WeMo basic event %d"), _device);
+  addLog(LOG_LEVEL_DEBUG, log);
 
   String request = _server->arg(0);
   if(request.indexOf("State>1</Binary") > 0) do_cmnd_power(_device, 1);
@@ -58,7 +60,9 @@ void Wemo::handleUPnPevent()
 
 void Wemo::handleUPnPservice()
 {
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo event service"));
+  char log[LOGSZ];
+  snprintf_P(log, sizeof(log), PSTR("HTTP: Handle WeMo event service %d"), _device);
+  addLog(LOG_LEVEL_DEBUG, log);
 
   String eventservice_xml = FPSTR(WEMO_EVENTSERVICE_XML);
   _server->send(200, "text/plain", eventservice_xml);
@@ -67,7 +71,9 @@ void Wemo::handleUPnPservice()
 
 void Wemo::handleUPnPsetup()
 {
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo setup"));
+  char log[LOGSZ];
+  snprintf_P(log, sizeof(log), PSTR("HTTP: Handle WeMo setup %d"), _device);
+  addLog(LOG_LEVEL_DEBUG, log);
 
   String setup_xml = FPSTR(WEMO_SETUP_XML);
   setup_xml.replace("{x1}", sysCfg.friendlyname[_device-1]);
@@ -79,7 +85,8 @@ void Wemo::handleUPnPsetup()
 String Wemo::getSerial()
 {
   char serial[18];
-  snprintf_P(serial, sizeof(serial), PSTR("201612K%08xd%d"), ESP.getChipId(), (int)_device);
+  // 201612K prefix; 32-bit chip id encoded as 8 character hex string; then device number 
+  snprintf_P(serial, sizeof(serial), PSTR("201612K%08x%d"), ESP.getChipId(), (int)_device);
   return String(serial);
 }
 
