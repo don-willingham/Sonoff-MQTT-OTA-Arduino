@@ -258,8 +258,7 @@ const char WEMO_SETUP_XML[] PROGMEM =
 enum http_t {HTTP_OFF, HTTP_USER, HTTP_ADMIN, HTTP_MANAGER};
 
 DNSServer *dnsServer;
-ESP8266WebServer *webServer;
-ESP8266WebServer *webServer2;
+ESP8266WebServer *webServer[2] = { NULL, NULL };
 
 #ifdef USE_WEMO_EMULATION
 #include "wemo.h"
@@ -275,40 +274,40 @@ void startWebserver(int type, IPAddress ipweb)
   char log[LOGSZ];
 
   if (!_httpflag) {
-    if (!webServer) {
-      webServer = new ESP8266WebServer(80);
-      webServer2 = new ESP8266WebServer(81);
-      webServer->on("/", handleRoot);
-      webServer->on("/cn", handleConfig);
-      webServer->on("/w1", handleWifi1);
-      webServer->on("/w0", handleWifi0);
+    if (!webServer[0]) {
+      webServer[0] = new ESP8266WebServer(80);
+      webServer[1] = new ESP8266WebServer(81);
+      webServer[0]->on("/", handleRoot);
+      webServer[0]->on("/cn", handleConfig);
+      webServer[0]->on("/w1", handleWifi1);
+      webServer[0]->on("/w0", handleWifi0);
 #ifdef USE_MQTT
-      webServer->on("/mq", handleMqtt);
+      webServer[0]->on("/mq", handleMqtt);
 #ifdef USE_DOMOTICZ
-      webServer->on("/dm", handleDomoticz);
+      webServer[0]->on("/dm", handleDomoticz);
 #endif  // USE_DOMOTICZ
 #endif  // USE_MQTT
-      webServer->on("/lg", handleLog);
-      webServer->on("/co", handleOther);
-      webServer->on("/sv", handleSave);
-      webServer->on("/rt", handleReset);
-      webServer->on("/up", handleUpgrade);
-      webServer->on("/u1", handleUpgradeStart);
-      webServer->on("/u2", HTTP_POST, handleUploadDone, handleUploadLoop);
-      webServer->on("/cm", handleCmnd);
-      webServer->on("/cs", handleConsole);
-      webServer->on("/ax", handleAjax);
-      webServer->on("/in", handleInfo);
-      webServer->on("/rb", handleRestart);
-      webServer->on("/fwlink", handleRoot);  // Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+      webServer[0]->on("/lg", handleLog);
+      webServer[0]->on("/co", handleOther);
+      webServer[0]->on("/sv", handleSave);
+      webServer[0]->on("/rt", handleReset);
+      webServer[0]->on("/up", handleUpgrade);
+      webServer[0]->on("/u1", handleUpgradeStart);
+      webServer[0]->on("/u2", HTTP_POST, handleUploadDone, handleUploadLoop);
+      webServer[0]->on("/cm", handleCmnd);
+      webServer[0]->on("/cs", handleConsole);
+      webServer[0]->on("/ax", handleAjax);
+      webServer[0]->on("/in", handleInfo);
+      webServer[0]->on("/rb", handleRestart);
+      webServer[0]->on("/fwlink", handleRoot);  // Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
 #ifdef USE_WEMO_EMULATION
-      wemos[0] = new Wemo(webServer, 1);
-      wemos[1] = new Wemo(webServer2, 2);
+      wemos[0] = new Wemo(webServer[0], 1);
+      wemos[1] = new Wemo(webServer[1], 2);
 #endif  // USE_WEMO_EMULATION
-      webServer->onNotFound(handleNotFound);
+      webServer[0]->onNotFound(handleNotFound);
     }
-    webServer->begin(); // Web server start
-    webServer2->begin(); // Web server start
+    webServer[0]->begin(); // Web server start
+    webServer[1]->begin(); // Web server start
   }
   if (_httpflag != type) {
     snprintf_P(log, sizeof(log), PSTR("HTTP: Webserver active on %s%s with IP address %s"),
@@ -321,8 +320,8 @@ void startWebserver(int type, IPAddress ipweb)
 void stopWebserver()
 {
   if (_httpflag) {
-    webServer->close();
-    webServer2->close();
+    webServer[0]->close();
+    webServer[1]->close();
     _httpflag = HTTP_OFF;
     addLog_P(LOG_LEVEL_INFO, PSTR("HTTP: Webserver stopped"));
   }
@@ -354,8 +353,8 @@ void beginWifiManager()
 void pollDnsWeb()
 {
   if (dnsServer) dnsServer->processNextRequest();
-  if (webServer) webServer->handleClient();
-  if (webServer2) webServer2->handleClient();
+  if (webServer[0]) webServer[0]->handleClient();
+  if (webServer[1]) webServer[1]->handleClient();
 }
 
 void showPage(String &page)
@@ -370,10 +369,10 @@ void showPage(String &page)
   }
   page += FPSTR(HTTP_END);
 
-  webServer->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  webServer->sendHeader("Pragma", "no-cache");
-  webServer->sendHeader("Expires", "-1");
-  webServer->send(200, "text/html", page);
+  webServer[0]->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  webServer[0]->sendHeader("Pragma", "no-cache");
+  webServer[0]->sendHeader("Expires", "-1");
+  webServer[0]->send(200, "text/html", page);
 }
 
 void handleRoot()
@@ -395,8 +394,8 @@ void handleRoot()
     page.replace("{v}", "Main menu");
 
     if (Maxdevice) {
-      if (strlen(webServer->arg("o").c_str())) {
-        do_cmnd_power(atoi(webServer->arg("o").c_str()), 2);
+      if (strlen(webServer[0]->arg("o").c_str())) {
+        do_cmnd_power(atoi(webServer[0]->arg("o").c_str()), 2);
       }
 
       page += F("<table style='width:100%'><tr>");
@@ -730,40 +729,40 @@ void handleSave()
 
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Parameter save"));
 
-  if (strlen(webServer->arg("w").c_str())) what = atoi(webServer->arg("w").c_str());
+  if (strlen(webServer[0]->arg("w").c_str())) what = atoi(webServer[0]->arg("w").c_str());
   switch (what) {
   case 1:
-    strlcpy(sysCfg.hostname, (!strlen(webServer->arg("h").c_str())) ? WIFI_HOSTNAME : webServer->arg("h").c_str(), sizeof(sysCfg.hostname));
+    strlcpy(sysCfg.hostname, (!strlen(webServer[0]->arg("h").c_str())) ? WIFI_HOSTNAME : webServer[0]->arg("h").c_str(), sizeof(sysCfg.hostname));
     if (strstr(sysCfg.hostname,"%")) strlcpy(sysCfg.hostname, DEF_WIFI_HOSTNAME, sizeof(sysCfg.hostname));
-    strlcpy(sysCfg.sta_ssid[0], (!strlen(webServer->arg("s1").c_str())) ? STA_SSID1 : webServer->arg("s1").c_str(), sizeof(sysCfg.sta_ssid[0]));
-    strlcpy(sysCfg.sta_pwd[0], (!strlen(webServer->arg("p1").c_str())) ? STA_PASS1 : webServer->arg("p1").c_str(), sizeof(sysCfg.sta_pwd[0]));
-    strlcpy(sysCfg.sta_ssid[1], (!strlen(webServer->arg("s2").c_str())) ? STA_SSID2 : webServer->arg("s2").c_str(), sizeof(sysCfg.sta_ssid[1]));
-    strlcpy(sysCfg.sta_pwd[1], (!strlen(webServer->arg("p2").c_str())) ? STA_PASS2 : webServer->arg("p2").c_str(), sizeof(sysCfg.sta_pwd[1]));
+    strlcpy(sysCfg.sta_ssid[0], (!strlen(webServer[0]->arg("s1").c_str())) ? STA_SSID1 : webServer[0]->arg("s1").c_str(), sizeof(sysCfg.sta_ssid[0]));
+    strlcpy(sysCfg.sta_pwd[0], (!strlen(webServer[0]->arg("p1").c_str())) ? STA_PASS1 : webServer[0]->arg("p1").c_str(), sizeof(sysCfg.sta_pwd[0]));
+    strlcpy(sysCfg.sta_ssid[1], (!strlen(webServer[0]->arg("s2").c_str())) ? STA_SSID2 : webServer[0]->arg("s2").c_str(), sizeof(sysCfg.sta_ssid[1]));
+    strlcpy(sysCfg.sta_pwd[1], (!strlen(webServer[0]->arg("p2").c_str())) ? STA_PASS2 : webServer[0]->arg("p2").c_str(), sizeof(sysCfg.sta_pwd[1]));
     snprintf_P(log, sizeof(log), PSTR("HTTP: Wifi Hostname %s, SSID1 %s, Password1 %s, SSID2 %s, Password2 %s"),
       sysCfg.hostname, sysCfg.sta_ssid[0], sysCfg.sta_pwd[0], sysCfg.sta_ssid[1], sysCfg.sta_pwd[1]);
     addLog(LOG_LEVEL_INFO, log);
     result += F("<br/>Trying to connect device to network<br/>If it fails reconnect to try again");
     break;
   case 2:
-    strlcpy(sysCfg.mqtt_host, (!strlen(webServer->arg("mh").c_str())) ? MQTT_HOST : webServer->arg("mh").c_str(), sizeof(sysCfg.mqtt_host));
-    sysCfg.mqtt_port = (!strlen(webServer->arg("ml").c_str())) ? MQTT_PORT : atoi(webServer->arg("ml").c_str());
-    strlcpy(sysCfg.mqtt_client, (!strlen(webServer->arg("mc").c_str())) ? MQTT_CLIENT_ID : webServer->arg("mc").c_str(), sizeof(sysCfg.mqtt_client));
-    strlcpy(sysCfg.mqtt_user, (!strlen(webServer->arg("mu").c_str())) ? MQTT_USER : webServer->arg("mu").c_str(), sizeof(sysCfg.mqtt_user));
-    strlcpy(sysCfg.mqtt_pwd, (!strlen(webServer->arg("mp").c_str())) ? MQTT_PASS : webServer->arg("mp").c_str(), sizeof(sysCfg.mqtt_pwd));
-    strlcpy(sysCfg.mqtt_topic, (!strlen(webServer->arg("mt").c_str())) ? MQTT_TOPIC : webServer->arg("mt").c_str(), sizeof(sysCfg.mqtt_topic));
+    strlcpy(sysCfg.mqtt_host, (!strlen(webServer[0]->arg("mh").c_str())) ? MQTT_HOST : webServer[0]->arg("mh").c_str(), sizeof(sysCfg.mqtt_host));
+    sysCfg.mqtt_port = (!strlen(webServer[0]->arg("ml").c_str())) ? MQTT_PORT : atoi(webServer[0]->arg("ml").c_str());
+    strlcpy(sysCfg.mqtt_client, (!strlen(webServer[0]->arg("mc").c_str())) ? MQTT_CLIENT_ID : webServer[0]->arg("mc").c_str(), sizeof(sysCfg.mqtt_client));
+    strlcpy(sysCfg.mqtt_user, (!strlen(webServer[0]->arg("mu").c_str())) ? MQTT_USER : webServer[0]->arg("mu").c_str(), sizeof(sysCfg.mqtt_user));
+    strlcpy(sysCfg.mqtt_pwd, (!strlen(webServer[0]->arg("mp").c_str())) ? MQTT_PASS : webServer[0]->arg("mp").c_str(), sizeof(sysCfg.mqtt_pwd));
+    strlcpy(sysCfg.mqtt_topic, (!strlen(webServer[0]->arg("mt").c_str())) ? MQTT_TOPIC : webServer[0]->arg("mt").c_str(), sizeof(sysCfg.mqtt_topic));
     snprintf_P(log, sizeof(log), PSTR("HTTP: MQTT Host %s, Port %d, Client %s, User %s, Password %s, Topic %s"),
       sysCfg.mqtt_host, sysCfg.mqtt_port, sysCfg.mqtt_client, sysCfg.mqtt_user, sysCfg.mqtt_pwd, sysCfg.mqtt_topic);
     addLog(LOG_LEVEL_INFO, log);
     break;
   case 3:
-    sysCfg.seriallog_level = (!strlen(webServer->arg("ls").c_str())) ? SERIAL_LOG_LEVEL : atoi(webServer->arg("ls").c_str());
-    sysCfg.weblog_level = (!strlen(webServer->arg("lw").c_str())) ? WEB_LOG_LEVEL : atoi(webServer->arg("lw").c_str());
-    sysCfg.syslog_level = (!strlen(webServer->arg("ll").c_str())) ? SYS_LOG_LEVEL : atoi(webServer->arg("ll").c_str());
+    sysCfg.seriallog_level = (!strlen(webServer[0]->arg("ls").c_str())) ? SERIAL_LOG_LEVEL : atoi(webServer[0]->arg("ls").c_str());
+    sysCfg.weblog_level = (!strlen(webServer[0]->arg("lw").c_str())) ? WEB_LOG_LEVEL : atoi(webServer[0]->arg("lw").c_str());
+    sysCfg.syslog_level = (!strlen(webServer[0]->arg("ll").c_str())) ? SYS_LOG_LEVEL : atoi(webServer[0]->arg("ll").c_str());
     syslog_level = sysCfg.syslog_level;
     syslog_timer = 0;
-    strlcpy(sysCfg.syslog_host, (!strlen(webServer->arg("lh").c_str())) ? SYS_LOG_HOST : webServer->arg("lh").c_str(), sizeof(sysCfg.syslog_host));
-    sysCfg.syslog_port = (!strlen(webServer->arg("lp").c_str())) ? SYS_LOG_PORT : atoi(webServer->arg("lp").c_str());
-    sysCfg.tele_period = (!strlen(webServer->arg("lt").c_str())) ? TELE_PERIOD : atoi(webServer->arg("lt").c_str());
+    strlcpy(sysCfg.syslog_host, (!strlen(webServer[0]->arg("lh").c_str())) ? SYS_LOG_HOST : webServer[0]->arg("lh").c_str(), sizeof(sysCfg.syslog_host));
+    sysCfg.syslog_port = (!strlen(webServer[0]->arg("lp").c_str())) ? SYS_LOG_PORT : atoi(webServer[0]->arg("lp").c_str());
+    sysCfg.tele_period = (!strlen(webServer[0]->arg("lt").c_str())) ? TELE_PERIOD : atoi(webServer[0]->arg("lt").c_str());
     snprintf_P(log, sizeof(log), PSTR("HTTP: Logging Seriallog %d, Weblog %d, Syslog %d, Host %s, Port %d, TelePeriod %d"),
       sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.syslog_port, sysCfg.tele_period);
     addLog(LOG_LEVEL_INFO, log);
@@ -771,13 +770,13 @@ void handleSave()
 #ifdef USE_MQTT
 #ifdef USE_DOMOTICZ
   case 4:
-    strlcpy(sysCfg.domoticz_in_topic, (!strlen(webServer->arg("it").c_str())) ? DOMOTICZ_IN_TOPIC : webServer->arg("it").c_str(), sizeof(sysCfg.domoticz_in_topic));
-    strlcpy(sysCfg.domoticz_out_topic, (!strlen(webServer->arg("ot").c_str())) ? DOMOTICZ_OUT_TOPIC : webServer->arg("ot").c_str(), sizeof(sysCfg.domoticz_out_topic));
-    sysCfg.domoticz_relay_idx[0] = (!strlen(webServer->arg("ix").c_str())) ? DOMOTICZ_RELAY_IDX1 : atoi(webServer->arg("ix").c_str());
-    sysCfg.domoticz_relay_idx[1] = (!strlen(webServer->arg("iy").c_str())) ? DOMOTICZ_RELAY_IDX2 : atoi(webServer->arg("iy").c_str());
-    sysCfg.domoticz_relay_idx[2] = (!strlen(webServer->arg("iz").c_str())) ? DOMOTICZ_RELAY_IDX3 : atoi(webServer->arg("iz").c_str());
-    sysCfg.domoticz_relay_idx[3] = (!strlen(webServer->arg("iw").c_str())) ? DOMOTICZ_RELAY_IDX4 : atoi(webServer->arg("iw").c_str());
-    sysCfg.domoticz_update_timer = (!strlen(webServer->arg("ut").c_str())) ? DOMOTICZ_UPDATE_TIMER : atoi(webServer->arg("ut").c_str());
+    strlcpy(sysCfg.domoticz_in_topic, (!strlen(webServer[0]->arg("it").c_str())) ? DOMOTICZ_IN_TOPIC : webServer[0]->arg("it").c_str(), sizeof(sysCfg.domoticz_in_topic));
+    strlcpy(sysCfg.domoticz_out_topic, (!strlen(webServer[0]->arg("ot").c_str())) ? DOMOTICZ_OUT_TOPIC : webServer[0]->arg("ot").c_str(), sizeof(sysCfg.domoticz_out_topic));
+    sysCfg.domoticz_relay_idx[0] = (!strlen(webServer[0]->arg("ix").c_str())) ? DOMOTICZ_RELAY_IDX1 : atoi(webServer[0]->arg("ix").c_str());
+    sysCfg.domoticz_relay_idx[1] = (!strlen(webServer[0]->arg("iy").c_str())) ? DOMOTICZ_RELAY_IDX2 : atoi(webServer[0]->arg("iy").c_str());
+    sysCfg.domoticz_relay_idx[2] = (!strlen(webServer[0]->arg("iz").c_str())) ? DOMOTICZ_RELAY_IDX3 : atoi(webServer[0]->arg("iz").c_str());
+    sysCfg.domoticz_relay_idx[3] = (!strlen(webServer[0]->arg("iw").c_str())) ? DOMOTICZ_RELAY_IDX4 : atoi(webServer[0]->arg("iw").c_str());
+    sysCfg.domoticz_update_timer = (!strlen(webServer[0]->arg("ut").c_str())) ? DOMOTICZ_UPDATE_TIMER : atoi(webServer[0]->arg("ut").c_str());
     snprintf_P(log, sizeof(log), PSTR("HTTP: Domoticz in_topic %s, out_topic %s, idx1 %d, idx2 %d, idx3 %d, idx4 %d, update_timer %d"),
       sysCfg.domoticz_in_topic, sysCfg.domoticz_out_topic, sysCfg.domoticz_relay_idx[0], sysCfg.domoticz_relay_idx[1],
       sysCfg.domoticz_relay_idx[2], sysCfg.domoticz_relay_idx[3], sysCfg.domoticz_update_timer);
@@ -786,15 +785,15 @@ void handleSave()
 #endif  // USE_DOMOTICZ
 #endif  // USE_MQTT
   case 5:
-    strlcpy(sysCfg.friendlyname[0], (!strlen(webServer->arg("an").c_str())) ? FRIENDLY_NAME : webServer->arg("an").c_str(), sizeof(sysCfg.friendlyname[0]));
-    strlcpy(sysCfg.friendlyname[1], (!strlen(webServer->arg("ao").c_str())) ? FRIENDLY_NAME2 : webServer->arg("ao").c_str(), sizeof(sysCfg.friendlyname[1]));
+    strlcpy(sysCfg.friendlyname[0], (!strlen(webServer[0]->arg("an").c_str())) ? FRIENDLY_NAME : webServer[0]->arg("an").c_str(), sizeof(sysCfg.friendlyname[0]));
+    strlcpy(sysCfg.friendlyname[1], (!strlen(webServer[0]->arg("ao").c_str())) ? FRIENDLY_NAME2 : webServer[0]->arg("ao").c_str(), sizeof(sysCfg.friendlyname[1]));
     snprintf_P(log, sizeof(log), PSTR("HTTP: Other Friendly Names %s & %s %d %d %d"),
       sysCfg.friendlyname[0], sysCfg.friendlyname[1], sizeof(sysCfg.friendlyname[0]), sizeof(sysCfg.friendlyname[0]), sizeof(sysCfg.friendlyname[0][0]));
     addLog(LOG_LEVEL_INFO, log);
     break;
   }
 
-  restart = (!strlen(webServer->arg("r").c_str())) ? 1 : atoi(webServer->arg("r").c_str());
+  restart = (!strlen(webServer[0]->arg("r").c_str())) ? 1 : atoi(webServer[0]->arg("r").c_str());
   if (restart) {
     String page = FPSTR(HTTP_HEAD);
     page.replace("{v}", "Save parameters");
@@ -865,8 +864,8 @@ void handleUpgradeStart()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Firmware upgrade start"));
   WIFI_configCounter();
 
-  if (strlen(webServer->arg("o").c_str())) {
-    snprintf_P(svalue, sizeof(svalue), PSTR("otaurl %s"), webServer->arg("o").c_str());
+  if (strlen(webServer[0]->arg("o").c_str())) {
+    snprintf_P(svalue, sizeof(svalue), PSTR("otaurl %s"), webServer[0]->arg("o").c_str());
     do_cmnd(svalue);
   }
 
@@ -941,7 +940,7 @@ void handleUploadLoop()
     return;
   }
 
-  HTTPUpload& upload = webServer->upload();
+  HTTPUpload& upload = webServer[0]->upload();
 
   if (upload.status == UPLOAD_FILE_START) {
     restartflag = 60;
@@ -1022,8 +1021,8 @@ void handleCmnd()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle cmnd"));
 
   byte curridx = logidx;
-  if (strlen(webServer->arg(0).c_str())) {
-    snprintf_P(svalue, sizeof(svalue), webServer->arg(0).c_str());
+  if (strlen(webServer[0]->arg(0).c_str())) {
+    snprintf_P(svalue, sizeof(svalue), webServer[0]->arg(0).c_str());
     do_cmnd(svalue);
   }
 
@@ -1049,10 +1048,10 @@ void handleCmnd()
     message = F("Enable weblog 2 if response expected\n");
   }
 
-  webServer->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  webServer->sendHeader("Pragma", "no-cache");
-  webServer->sendHeader("Expires", "-1");
-  webServer->send(200, "text/plain", message);
+  webServer[0]->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  webServer[0]->sendHeader("Pragma", "no-cache");
+  webServer[0]->sendHeader("Expires", "-1");
+  webServer[0]->send(200, "text/plain", message);
 }
 
 void handleConsole()
@@ -1065,8 +1064,8 @@ void handleConsole()
 
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle console"));
 
-  if (strlen(webServer->arg("c1").c_str())) {
-    snprintf_P(svalue, sizeof(svalue), webServer->arg("c1").c_str());
+  if (strlen(webServer[0]->arg("c1").c_str())) {
+    snprintf_P(svalue, sizeof(svalue), webServer[0]->arg("c1").c_str());
     do_cmnd(svalue);
   }
 
@@ -1103,10 +1102,10 @@ void handleAjax()
     counter++;
     if (counter > MAX_LOG_LINES -1) counter = 0;
   } while (counter != logidx);
-  webServer->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  webServer->sendHeader("Pragma", "no-cache");
-  webServer->sendHeader("Expires", "-1");
-  webServer->send(200, "text/plain", message);
+  webServer[0]->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  webServer[0]->sendHeader("Pragma", "no-cache");
+  webServer[0]->sendHeader("Expires", "-1");
+  webServer[0]->send(200, "text/plain", message);
 }
 
 void handleInfo()
@@ -1221,31 +1220,31 @@ void handleNotFound()
   }
   String message = "File Not Found\n\n";
   message += "URI: ";
-  message += webServer->uri();
+  message += webServer[0]->uri();
   message += "\nMethod: ";
-  message += ( webServer->method() == HTTP_GET ) ? "GET" : "POST";
+  message += ( webServer[0]->method() == HTTP_GET ) ? "GET" : "POST";
   message += "\nArguments: ";
-  message += webServer->args();
+  message += webServer[0]->args();
   message += "\n";
-  for ( uint8_t i = 0; i < webServer->args(); i++ ) {
-    message += " " + webServer->argName ( i ) + ": " + webServer->arg ( i ) + "\n";
+  for ( uint8_t i = 0; i < webServer[0]->args(); i++ ) {
+    message += " " + webServer[0]->argName ( i ) + ": " + webServer[0]->arg ( i ) + "\n";
   }
 
-  webServer->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  webServer->sendHeader("Pragma", "no-cache");
-  webServer->sendHeader("Expires", "-1");
-  webServer->send(404, "text/plain", message);
+  webServer[0]->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  webServer[0]->sendHeader("Pragma", "no-cache");
+  webServer[0]->sendHeader("Expires", "-1");
+  webServer[0]->send(404, "text/plain", message);
 }
 
 /* Redirect to captive portal if we got a request for another domain. Return true in that case so the page handler do not try to handle the request again. */
 boolean captivePortal()
 {
-  if (!isIp(webServer->hostHeader())) {
+  if (!isIp(webServer[0]->hostHeader())) {
     addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Request redirected to captive portal"));
 
-    webServer->sendHeader("Location", String("http://") + webServer->client().localIP().toString(), true);
-    webServer->send(302, "text/plain", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves.
-    webServer->client().stop(); // Stop is needed because we sent no content length
+    webServer[0]->sendHeader("Location", String("http://") + webServer[0]->client().localIP().toString(), true);
+    webServer[0]->send(302, "text/plain", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves.
+    webServer[0]->client().stop(); // Stop is needed because we sent no content length
     return true;
   }
   return false;
