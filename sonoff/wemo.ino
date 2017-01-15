@@ -44,6 +44,9 @@ Wemo::Wemo(ESP8266WebServer *server, byte device)
     handleUPnPsetup();
   });
 
+  _server->onNotFound([&]() {
+    handleNotFound2(_server);
+  });
 }
 
 void Wemo::handleUPnPevent()

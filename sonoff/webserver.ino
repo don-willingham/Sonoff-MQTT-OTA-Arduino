@@ -1213,42 +1213,53 @@ void handleRestart()
   restartflag = 2;
 }
 
-void handleNotFound()
+void handleNotFound2(ESP8266WebServer *thisWebServer)
 {
-  if (captivePortal()) { // If captive portal redirect instead of displaying the error page.
+  if (captivePortal(thisWebServer)) { // If captive portal redirect instead of displaying the error page.
     return;
   }
   String message = "File Not Found\n\n";
   message += "URI: ";
-  message += webServer[0]->uri();
+  message += thisWebServer->uri();
   message += "\nMethod: ";
-  message += ( webServer[0]->method() == HTTP_GET ) ? "GET" : "POST";
+  message += ( thisWebServer->method() == HTTP_GET ) ? "GET" : "POST";
   message += "\nArguments: ";
-  message += webServer[0]->args();
+  message += thisWebServer->args();
   message += "\n";
-  for ( uint8_t i = 0; i < webServer[0]->args(); i++ ) {
-    message += " " + webServer[0]->argName ( i ) + ": " + webServer[0]->arg ( i ) + "\n";
+  for ( uint8_t i = 0; i < thisWebServer->args(); i++ ) {
+    message += " " + thisWebServer->argName ( i ) + ": " + thisWebServer->arg ( i ) + "\n";
   }
 
-  webServer[0]->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  webServer[0]->sendHeader("Pragma", "no-cache");
-  webServer[0]->sendHeader("Expires", "-1");
-  webServer[0]->send(404, "text/plain", message);
+  thisWebServer->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  thisWebServer->sendHeader("Pragma", "no-cache");
+  thisWebServer->sendHeader("Expires", "-1");
+  thisWebServer->send(404, "text/plain", message);
+}
+
+void handleNotFound()
+{
+  handleNotFound2(webServer[0]);
 }
 
 /* Redirect to captive portal if we got a request for another domain. Return true in that case so the page handler do not try to handle the request again. */
-boolean captivePortal()
+boolean captivePortal(ESP8266WebServer *thisWebServer)
 {
-  if (!isIp(webServer[0]->hostHeader())) {
+  if (!isIp(thisWebServer->hostHeader())) {
     addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Request redirected to captive portal"));
 
-    webServer[0]->sendHeader("Location", String("http://") + webServer[0]->client().localIP().toString(), true);
-    webServer[0]->send(302, "text/plain", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves.
-    webServer[0]->client().stop(); // Stop is needed because we sent no content length
+    thisWebServer->sendHeader("Location", String("http://") + thisWebServer->client().localIP().toString(), true);
+    thisWebServer->send(302, "text/plain", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves.
+    thisWebServer->client().stop(); // Stop is needed because we sent no content length
     return true;
   }
   return false;
 }
+
+boolean captivePortal()
+{
+  return (captivePortal(webServer[0]));
+}
+
 
 /** Is this an IP? */
 boolean isIp(String str)
