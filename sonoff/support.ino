@@ -31,12 +31,6 @@ extern "C" {
 #include "spi_flash.h"
 }
 
-#ifdef USE_WEMO_EMULATION
-#include "wemo.h"
-extern Wemo *wemos[2];
-#endif // USE_WEMO_EMULATION
-
-
 #define SPIFFS_START        ((uint32_t)&_SPIFFS_start - 0x40200000) / SPI_FLASH_SEC_SIZE
 #define SPIFFS_END          ((uint32_t)&_SPIFFS_end - 0x40200000) / SPI_FLASH_SEC_SIZE
 
@@ -604,51 +598,6 @@ void IPtoCharArray(IPAddress address, char *ip_str, size_t size)
     str.toCharArray(ip_str, size);
 }
 #endif  // USE_DISCOVERY
-
-#ifdef USE_WEMO_EMULATION
-/*********************************************************************************************\
- * WeMo UPNP support routines
-\*********************************************************************************************/
-
-void wemo_respondToMSearch()
-{
-  /* Thanks for https://github.com/kakopappa/arduino-esp8266-alexa-wemo-switch for showing
-   *  that each "wemo" can run on a different port */
-  for (char chan = 0; chan < 2; chan++) {
-    wemos[chan]->respondToMSearch();
-  }
-}
-
-void pollUDP()
-{
-  if (udpConnected) {
-    if (portUDP.parsePacket()) {
-      int len = portUDP.read(packetBuffer, WEMO_BUFFER_SIZE -1);
-      if (len > 0) packetBuffer[len] = 0;
-      String request = packetBuffer;
-      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
-      if (request.indexOf("M-SEARCH") >= 0) {
-        if (request.indexOf("urn:Belkin:device:**") > 0) {
-          wemo_respondToMSearch();
-        }
-      }
-    }
-  }
-}
-
-boolean UDP_Connect()
-{
-  boolean state = false;
-
-  if (portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast (re)joined"));
-    state = true;
-  } else {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast join failed"));
-  }
-  return state;
-}
-#endif  // USE_WEMO_EMULATION
 
 /*********************************************************************************************\
  * Basic I2C routines

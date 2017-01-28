@@ -25,6 +25,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
 
+#ifdef USE_WEMO_EMULATION
+#include "wemo.h"
+extern Wemo *wemos[2];
+#endif // USE_WEMO_EMULATION
+
 #define UDP_BUFFER_SIZE 200         // Max UDP buffer size needed for M-SEARCH message
 
 boolean udpConnected = false;
@@ -37,51 +42,13 @@ uint32_t portMulticast = 1900;      // Multicast address and port
 /*********************************************************************************************\
  * WeMo UPNP support routines
 \*********************************************************************************************/
-const char WEMO_MSEARCH[] PROGMEM =
-  "HTTP/1.1 200 OK\r\n"
-  "CACHE-CONTROL: max-age=86400\r\n"
-  "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
-  "EXT:\r\n"
-  "LOCATION: http://{r1}:80/setup.xml\r\n"
-  "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
-  "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
-  "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
-  "ST: urn:Belkin:device:**\r\n"
-  "USN: uuid:{r2}::urn:Belkin:device:**\r\n"
-  "X-User-Agent: redsonic\r\n"
-  "\r\n";
-
-String wemo_serial()
-{
-  char serial[15];
-  snprintf_P(serial, sizeof(serial), PSTR("201612K%07d"), ESP.getChipId());
-  return String(serial);
-}
-
-String wemo_UUID()
-{
-  char uuid[26];
-  snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), wemo_serial().c_str());
-  return String(uuid);
-}
-
 void wemo_respondToMSearch()
 {
-  char message[TOPSZ], log[LOGSZ];
-
-  if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
-    String response = FPSTR(WEMO_MSEARCH);
-    response.replace("{r1}", WiFi.localIP().toString());
-    response.replace("{r2}", wemo_UUID());
-    portUDP.write(response.c_str());
-    portUDP.endPacket();
-    snprintf_P(message, sizeof(message), PSTR("Response sent"));
-  } else {
-    snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
+  /* Thanks for https://github.com/kakopappa/arduino-esp8266-alexa-wemo-switch for showing
+   *  that each "wemo" can run on a different port */
+  for (char chan = 0; chan < 2; chan++) {
+    wemos[chan]->respondToMSearch();
   }
-  snprintf_P(log, sizeof(log), PSTR("UPnP: Wemo %s to %s:%d"),
-    message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
-  addLog(LOG_LEVEL_DEBUG, log);
 }
 #endif  // USE_WEMO_EMULATION
 
@@ -178,7 +145,6 @@ void hue_respondToMSearch()
 
 /********************************************************************************************/
 
-#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
 boolean UDP_Disconnect()
 {
   if (udpConnected) {
@@ -228,6 +194,5 @@ void pollUDP()
     }
   }
 }
-#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 #endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 
