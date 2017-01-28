@@ -1200,15 +1200,17 @@ void handleInfo()
   page += F("<style>td{padding:0px 5px;}</style>");
   page += F("<table style'width:100%;'>");
   page += F("<tr><th>Program version</th><td>"); page += Version; page += F("</td></tr>");
+  page += F("<tr><th>Build Date/Time</th><td>"); page += __DATE__;
+  page += F("/"); page += __TIME__ ; page += F("</td></tr>");
   page += F("<tr><th>Core/SDK version</th><td>"); page += ESP.getCoreVersion(); page += F("/"); page += String(ESP.getSdkVersion()); page += F("</td></tr>");
   page += F("<tr><th>Uptime</th><td>"); page += String(uptime); page += F(" Hours</td></tr>");
   page += F("<tr><th>Flash write count</th><td>"); page += String(sysCfg.saveFlag); page += F("</td></tr>");
   page += F("<tr><th>Boot count</th><td>"); page += String(sysCfg.bootcount); page += F("</td></tr>");
   page += F("<tr><th>Reset reason</th><td>"); page += ESP.getResetReason(); page += F("</td></tr>");
   for (byte i = 0; i < Maxdevice; i++) {
-    page += F("<tr><td><b>Friendly name ");
+    page += F("<tr><th>Friendly name ");
     page += i +1;
-    page += F("</b></td><td>"); page += String(sysCfg.friendlyname[i]); page += F("</td></tr>");
+    page += F("</th><td>"); page += String(sysCfg.friendlyname[i]); page += F("</td></tr>");
   }
   page += F("<tr><td>&nbsp;</td></tr>");
 //  page += F("<tr><td><b>SSId (RSSI)</b></td><td>"); page += (sysCfg.sta_active)? sysCfg.sta_ssid2 : sysCfg.sta_ssid1; page += F(" ("); page += WIFI_getRSSIasQuality(WiFi.RSSI()); page += F("%)</td></tr>");
@@ -1243,6 +1245,12 @@ void handleInfo()
 #else
   page += F("Disabled");
 #endif // USE_WEMO_EMULATION
+  page += F("<tr><th>Hue Emulation</th><td>");
+#ifdef USE_HUE_EMULATION
+  page += F("Enabled");
+#else
+  page += F("Disabled");
+#endif // USE_HUE_EMULATION
   page += F("<tr><th>mDNS Discovery</th><td>");
 #ifdef USE_DISCOVERY
   page += F("Enabled");
