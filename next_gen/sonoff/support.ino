@@ -31,12 +31,6 @@ extern "C" {
 #include "spi_flash.h"
 }
 
-#ifdef USE_WEMO_EMULATION
-#include "wemo.h"
-extern Wemo *wemos[2];
-#endif // USE_WEMO_EMULATION
-
-
 #define SPIFFS_START        ((uint32_t)&_SPIFFS_start - 0x40200000) / SPI_FLASH_SEC_SIZE
 #define SPIFFS_END          ((uint32_t)&_SPIFFS_end - 0x40200000) / SPI_FLASH_SEC_SIZE
 
@@ -201,7 +195,7 @@ void CFG_Erase()
 
   uint32_t _sectorStart = (ESP.getSketchSize() / SPI_FLASH_SEC_SIZE) + 1;
   uint32_t _sectorEnd = ESP.getFlashChipRealSize() / SPI_FLASH_SEC_SIZE;
-  boolean _serialoutput = (LOG_LEVEL_DEBUG_MORE <= sysCfg.seriallog_level);
+  boolean _serialoutput = (LOG_LEVEL_DEBUG_MORE <= seriallog_level);
 
   snprintf_P(log, sizeof(log), PSTR("Config: Erasing %d flash sectors"), _sectorEnd - _sectorStart);
   addLog(LOG_LEVEL_DEBUG, log);
@@ -226,27 +220,47 @@ void CFG_Erase()
 void CFG_Dump()
 {
   #define CFG_COLS 16
-  
   char log[LOGSZ];
-  uint16_t idx, maxrow, row, col;
+  uint8_t buffer[((sizeof(SYSCFG)+CFG_COLS)/CFG_COLS)*CFG_COLS];
+  uint16_t idx, row, col;
 
-  uint8_t *buffer = (uint8_t *) &sysCfg;
-  maxrow = ((sizeof(SYSCFG)+CFG_COLS)/CFG_COLS);
-
-  for (row = 0; row < maxrow; row++) {
-    idx = row * CFG_COLS;
-    snprintf_P(log, sizeof(log), PSTR("%04X:"), idx);
-    for (col = 0; col < CFG_COLS; col++) {
-      if (!(col%4)) snprintf_P(log, sizeof(log), PSTR("%s "), log);
-      snprintf_P(log, sizeof(log), PSTR("%s %02X"), log, buffer[idx + col]);
+  if (spiffsPresent()) {
+    if (!spiffsflag) {
+#ifdef USE_SPIFFS
+      File f = SPIFFS.open(SPIFFS_CONFIG, "r+");
+      if (f) {
+        uint8_t *bytes = (uint8_t*)&buffer;
+        for (int i = 0; i < sizeof(buffer); i++) bytes[i] = f.read();
+        f.close();
+        addLog(LOG_LEVEL_INFO, PSTR("Config: Loaded buffer from spiffs"));
+      } else {
+        addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - Loading buffer failed"));
+      }
+    } else {
+#endif  // USE_SPIFFS
+      noInterrupts();
+      spi_flash_read((CFG_LOCATION + (sysCfg.saveFlag &1)) * SPI_FLASH_SEC_SIZE, (uint32*)&buffer, sizeof(buffer));
+      interrupts();
+      snprintf_P(log, sizeof(log), PSTR("Config: Loaded buffer from flash at %X"), CFG_LOCATION + (sysCfg.saveFlag &1));
+      addLog(LOG_LEVEL_INFO, log);
     }
-    snprintf_P(log, sizeof(log), PSTR("%s |"), log);
-    for (col = 0; col < CFG_COLS; col++) {
-//      if (!(col%4)) snprintf_P(log, sizeof(log), PSTR("%s "), log);
-      snprintf_P(log, sizeof(log), PSTR("%s%c"), log, ((buffer[idx + col] > 0x20) && (buffer[idx + col] < 0x7F)) ? (char)buffer[idx + col] : ' ');
+    for (row = 0; row < sizeof(buffer)/CFG_COLS; row++) {
+      idx = row * CFG_COLS;
+      snprintf_P(log, sizeof(log), PSTR("%04X:"), idx);
+      for (col = 0; col < CFG_COLS; col++) {
+        if (!(col%4)) snprintf_P(log, sizeof(log), PSTR("%s "), log);
+        snprintf_P(log, sizeof(log), PSTR("%s %02X"), log, buffer[idx + col]);
+      }
+      snprintf_P(log, sizeof(log), PSTR("%s |"), log);
+      for (col = 0; col < CFG_COLS; col++) {
+//        if (!(col%4)) snprintf_P(log, sizeof(log), PSTR("%s "), log);
+        snprintf_P(log, sizeof(log), PSTR("%s%c"), log, ((buffer[idx + col] > 0x20) && (buffer[idx + col] < 0x7F)) ? (char)buffer[idx + col] : ' ');
+      }
+      snprintf_P(log, sizeof(log), PSTR("%s|"), log);
+      addLog(LOG_LEVEL_INFO, log);
     }
-    snprintf_P(log, sizeof(log), PSTR("%s|"), log);
-    addLog(LOG_LEVEL_INFO, log);
+  } else {
+    addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - No SPIFFS present"));
   }
 }
 
@@ -281,6 +295,26 @@ void initSpiffs()
 }
 #endif  // USE_SPIFFS
 
+/*
+void setFlashChipMode(byte mode)
+{
+  char log[LOGSZ];
+  uint32_t data;
+  
+  uint8_t * bytes = (uint8_t *) &data;
+  // read first 4 byte (magic byte + flash config)
+  if (spi_flash_read(0x0000, &data, 4) == SPI_FLASH_RESULT_OK) {
+
+    snprintf_P(log, sizeof(log), PSTR("FLSH: Magic byte and flash config %08X"), data);
+    addLog(LOG_LEVEL_DEBUG, log);
+    
+    if (bytes[2] != mode) {
+      bytes[2] = mode &3;
+//      spi_flash_write(0x0000, &data, 4);
+    }
+  }
+}
+*/
 /*********************************************************************************************\
  * Wifi
 \*********************************************************************************************/
@@ -407,7 +441,6 @@ void WIFI_begin(uint8_t flag)
   }
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);      // Disable AP mode
-  if (sysCfg.sleep) wifi_set_sleep_type(LIGHT_SLEEP_T);  // Allow light sleep during idle times
 //  if (WiFi.getPhyMode() != WIFI_PHY_MODE_11N) WiFi.setPhyMode(WIFI_PHY_MODE_11N);
   if (!WiFi.getAutoConnect()) WiFi.setAutoConnect(true);
 //  WiFi.setAutoReconnect(true);
@@ -605,56 +638,11 @@ void IPtoCharArray(IPAddress address, char *ip_str, size_t size)
 }
 #endif  // USE_DISCOVERY
 
-#ifdef USE_WEMO_EMULATION
-/*********************************************************************************************\
- * WeMo UPNP support routines
-\*********************************************************************************************/
-
-void wemo_respondToMSearch()
-{
-  /* Thanks for https://github.com/kakopappa/arduino-esp8266-alexa-wemo-switch for showing
-   *  that each "wemo" can run on a different port */
-  for (char chan = 0; chan < 2; chan++) {
-    wemos[chan]->respondToMSearch();
-  }
-}
-
-void pollUDP()
-{
-  if (udpConnected) {
-    if (portUDP.parsePacket()) {
-      int len = portUDP.read(packetBuffer, WEMO_BUFFER_SIZE -1);
-      if (len > 0) packetBuffer[len] = 0;
-      String request = packetBuffer;
-      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
-      if (request.indexOf("M-SEARCH") >= 0) {
-        if (request.indexOf("urn:Belkin:device:**") > 0) {
-          wemo_respondToMSearch();
-        }
-      }
-    }
-  }
-}
-
-boolean UDP_Connect()
-{
-  boolean state = false;
-
-  if (portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast (re)joined"));
-    state = true;
-  } else {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast join failed"));
-  }
-  return state;
-}
-#endif  // USE_WEMO_EMULATION
-
 /*********************************************************************************************\
  * Basic I2C routines
 \*********************************************************************************************/
 
-#ifdef SEND_TELEMETRY_I2C
+#ifdef USE_I2C
 #define I2C_RETRY_COUNTER 3
 
 int32_t i2c_read(uint8_t addr, uint8_t reg, uint8_t size)
@@ -748,7 +736,7 @@ void i2c_scan(char *devs, unsigned int devs_len)
     snprintf_P(devs, devs_len, PSTR("{\"I2Cscan\":\"No devices found\"}"));
   }
 }
-#endif //SEND_TELEMETRY_I2C
+#endif  // USE_I2C
 
 /*********************************************************************************************\
  * Real Time Clock
@@ -1012,7 +1000,7 @@ void addLog(byte loglevel, const char *line)
 #ifdef DEBUG_ESP_PORT
   DEBUG_ESP_PORT.printf("%s %s\n", mxtime, line);
 #endif  // DEBUG_ESP_PORT
-  if (loglevel <= sysCfg.seriallog_level) Serial.printf("%s %s\n", mxtime, line);
+  if (loglevel <= seriallog_level) Serial.printf("%s %s\n", mxtime, line);
 #ifdef USE_WEBSERVER
   if (loglevel <= sysCfg.weblog_level) {
     Log[logidx] = String(mxtime) + " " + String(line);
