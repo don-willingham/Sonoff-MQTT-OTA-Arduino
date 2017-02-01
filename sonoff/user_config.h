@@ -9,11 +9,12 @@
 \*********************************************************************************************/
 
 // Enable only one out of five MODULE defines below
-#define MODULE                 SONOFF            // Sonoff Basic, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket
+//#define MODULE                 SONOFF            // Sonoff Basic, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket
 //#define MODULE                 SONOFF_2          // Sonoff Touch, Sonoff 4CH
 //#define MODULE                 SONOFF_POW        // Sonoff Pow
 //#define MODULE                 MOTOR_CAC         // iTead Motor Clockwise/Anticlockwise
 //#define MODULE                 ELECTRO_DRAGON    // Electro Dragon Wifi IoT Relay Board Based on ESP8266
+#define MODULE                 ESP01_MISC        // ESP-01 based remote button(s)/sensor(s)/misc
 
 // -- Project --------------------------------
 #define PROJECT                "sonoff"     // PROJECT is used as the default topic delimiter and OTA file name
@@ -21,7 +22,7 @@
 
 #define CFG_HOLDER             0x20161209   // [Reset 1] Change this value to load following default configuration parameters
 #define SAVE_DATA              1            // [SaveData] Save changed parameters to Flash (0 = disable, 1 - 3600 seconds)
-#define SAVE_STATE             1            // [SaveState] Save changed power state to Flash (0 = disable, 1 = enable)
+#define SAVE_STATE             0            // [SaveState] Save changed power state to Flash (0 = disable, 1 = enable)
 
 // -- Wifi -----------------------------------
 #define STA_SSID1              "indebuurt1"      // [Ssid1] Wifi SSID
@@ -42,7 +43,7 @@
 #define OTA_URL                "http://domus1:80/api/arduino/" PROJECT ".ino.bin"  // [OtaUrl]
 
 // -- MQTT -----------------------------------
-#define USE_MQTT                            // Enable MQTT and Domoticz (+10k code, +1k mem)
+//#define USE_MQTT                            // Enable MQTT and Domoticz (+10k code, +1k mem)
 
 // !!! TLS uses a LOT OF MEMORY (20k) so be careful to enable other options at the same time !!!
 //#define USE_MQTT_TLS                        // EXPERIMENTAL Use TLS for MQTT connection (+53k code, +20k mem)
@@ -107,9 +108,12 @@
 //  #define USE_HUE_EMULATION                 // Enable Hue Bridge emulation for Alexa
 
 // -- mDNS -----------------------------------
-#define USE_DISCOVERY                       // Enable mDNS for the following services (+8k code, +0.3k mem)
+//#define USE_DISCOVERY                       // Enable mDNS for the following services (+8k code, +0.3k mem)
   #define WEBSERVER_ADVERTISE               // Provide access to webserver by name <Hostname>.local/
-  #define MQTT_HOST_DISCOVERY               // Find MQTT host server (overrides MQTT_HOST if found)
+//  #define MQTT_HOST_DISCOVERY               // Find MQTT host server (overrides MQTT_HOST if found)
+
+// -- Remote ---------------------------------
+#define REMOTE_SONOFF "192.168.1.204"
 
 // -- Time - Up to three NTP servers in your region
 #define NTP_SERVER1            "pool.ntp.org"
@@ -341,6 +345,16 @@
 /*********************************************************************************************\
  * No user configurable items below
 \*********************************************************************************************/
+
+#elif MODULE == ESP01_MISC
+  #define APP_NAME             "ESP-01 Module"
+  #define MQTT_GRPTOPIC        "other"      // [GroupTopic] MQTT Group topic
+  #define LED_PIN              16           // GPIO 16 = Led (0 = Off, 1 = On)
+  #define LED_INVERTED         0            // 0 = (1 = On, 0 = Off), 1 = (0 = On, 1 = Off)
+  #define REL_PIN              13           // GPIO 13 = Red Led and Relay 1 (0 = Off, 1 = On)
+  #define KEY_PIN              2            // GPIO 02 = Button 1
+  #define REL2_PIN             12           // GPIO 12 = Red Led and Relay 2 (0 = Off, 1 = On)
+  #define KEY2_PIN             0            // GPIO 00 = Button 2
 
 #else
   #error "Select either module SONOFF, SONOFF_2, SONOFF_POW, MOTOR_CAC or ELECTRO_DRAGON"

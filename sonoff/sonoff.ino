@@ -17,6 +17,7 @@
 #define SONOFF_2               10           // Sonoff Touch, Sonoff 4CH
 #define MOTOR_CAC              11           // iTead Motor Clockwise/Anticlockwise
 #define ELECTRO_DRAGON         12           // Electro Dragon Wifi IoT Relay Board Based on ESP8266
+#define ESP01_MISC             13           // ESP-01 based remote button(s)/sensor(s)/misc
 
 #define DHT11                  11
 #define DHT21                  21
@@ -136,6 +137,7 @@ enum butt_t {PRESSED, NOT_PRESSED};
 #include <ESP8266HTTPClient.h>              // MQTT, Ota
 #include <ESP8266httpUpdate.h>              // Ota
 #ifdef USE_MQTT
+  #define MQTT_MAX_PACKET_SIZE 400
   #include <PubSubClient.h>                 // MQTT
 #endif  // USE_MQTT
 #ifdef USE_WEBSERVER
@@ -2453,6 +2455,7 @@ void stateloop()
       } else  {
         flag = (multipress == 1);
       }
+      toggle_sonoff(REMOTE_SONOFF,"/?o=1");
 #ifdef USE_MQTT
       if (flag && mqttClient.connected() && strcmp(sysCfg.button_topic, "0")) {
         send_button_power(0, multipress, 2);  // Execute command via MQTT using ButtonTopic to sync external clients
@@ -2478,6 +2481,10 @@ void stateloop()
   if (Maxdevice > 1) {
     button = digitalRead(KEY2_PIN);
     if ((button == PRESSED) && (lastbutton2 == NOT_PRESSED)) {
+       snprintf_P(log, sizeof(log), PSTR("KEY2: %d pressed"), KEY2_PIN);
+       addLog(LOG_LEVEL_DEBUG, log);
+       toggle_sonoff(REMOTE_SONOFF,"/?o=2");
+
 #ifdef USE_MQTT
       if (mqttClient.connected() && strcmp(sysCfg.button_topic, "0")) {
         send_button_power(0, 2, 2);   // Execute commend via MQTT
@@ -2495,6 +2502,8 @@ void stateloop()
   if (Maxdevice > 2) {
     button = digitalRead(KEY3_PIN);
      if ((button == PRESSED) && (lastbutton3 == NOT_PRESSED)) {
+       snprintf_P(log, sizeof(log), PSTR("KEY3: %d pressed"), KEY3_PIN);
+       addLog(LOG_LEVEL_DEBUG, log);
 #ifdef USE_MQTT
       if (mqttClient.connected() && strcmp(sysCfg.button_topic, "0")) {
         send_button_power(0, 3, 2);   // Execute commend via MQTT
@@ -2718,6 +2727,35 @@ void serial()
 
 /********************************************************************************************/
 
+void toggle_sonoff(const char* host, const char *url) {
+  // Borrow code from http://stackoverflow.com/questions/34078497/esp8266-wificlient-simple-http-get
+
+  // Use WiFiClient class to create TCP connections
+  WiFiClient client;
+  const int httpPort = 80;
+  if (!client.connect(host, httpPort)) {
+    addLog_P(LOG_LEVEL_ERROR, PSTR("toggle_sonoff: http client connection failed"));
+    return;
+  }
+
+  // This will send the request to the server
+  client.print(String("POST ") + String(url) + " HTTP/1.1\r\n" +
+               "Host: " + host + "\r\n" + 
+               "Connection: keep-alive\r\n" + 
+               "Content-Length: 0\r\n" +
+               "User-Agent: ESP-01\r\n\r\n");
+  delay(10);
+  // Read all the lines of the reply from server and print them to Serial
+  while(client.available()){
+    char log[LOGSZ];
+    String line = client.readStringUntil('\r');
+    snprintf_P(log, sizeof(log), PSTR("%s"), line.c_str());
+    addLog(LOG_LEVEL_DEBUG, log);
+  }
+}
+
+/********************************************************************************************/
+
 void setup()
 {
   char log[LOGSZ];
@@ -2762,6 +2800,7 @@ void setup()
     if (sysCfg.model == CHANNEL_4) Maxdevice = 4;
   }
   if (MODULE == ELECTRO_DRAGON) Maxdevice = 2;
+  if (MODULE == ESP01_MISC) Maxdevice = 2;
 
   if (Serial.baudRate() != Baudrate) {
     snprintf_P(log, sizeof(log), PSTR("APP: Need to change baudrate to %d"), Baudrate);
